@@ -849,6 +849,29 @@ static int load_config_file(DaemonConfig *c) {
 
                     avahi_strfreev(e);
                 }
+                else if (strcasecmp(p->key, "reflect-routes") == 0) {
+                    char **e, **t;
+
+                    avahi_string_list_free(c->server_config.reflect_routes);
+                    c->server_config.reflect_routes = NULL;
+                    e = avahi_split_csv(p->value);
+
+                    for (t = e; *t; t++) {
+                        size_t n;
+
+                        /* Break by ">". */
+                        n = strcspn(*t, ">");
+                        if (n == strlen(*t)) {
+                            avahi_log_error("reflect-routes configuration item \"%s\" is missing a \">\"\n", *t);
+                            goto finish;
+                        }
+
+                        c->server_config.reflect_routes = avahi_string_list_add_arbitrary(c->server_config.reflect_routes, (unsigned char *) *t, n);
+                        c->server_config.reflect_routes = avahi_string_list_add(c->server_config.reflect_routes, *t + n + 1);
+                    }
+
+                    avahi_strfreev(e);
+                }
                 else {
                     avahi_log_error("Invalid configuration key \"%s\" in group \"%s\"\n", p->key, g->name);
                     goto finish;

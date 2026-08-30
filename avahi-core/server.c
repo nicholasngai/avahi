@@ -506,9 +506,44 @@ static void reflect_response(AvahiServer *s, AvahiInterface *i, AvahiRecord *r, 
     if (!s->config.enable_reflector)
         return;
 
-    for (j = s->monitor->interfaces; j; j = j->interface_next)
-        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol))
+    for (j = s->monitor->interfaces; j; j = j->interface_next) {
+        /* Don't reflect to the same interface. */
+        if (j == i)
+           continue;
+
+        /* Don't reflect to an interface with a different protocol unless configured. */
+        if (!s->config.reflect_ipv && j->protocol != i->protocol)
+            continue;
+
+        if (!s->config.reflect_routes) {
+            /* Reflect to all interfaces. */
             avahi_interface_post_response(j, r, flush_cache, NULL, 1);
+        } else {
+            AvahiStringList *reflect_routes;
+
+            /* Reflect only to configured interfaces by iterating over the routes. */
+            reflect_routes = s->config.reflect_routes;
+            while (reflect_routes) {
+                const char *route_input, *route_output;
+
+                route_input = (char *) reflect_routes->text;
+                reflect_routes = reflect_routes->next;
+                if (!reflect_routes)
+                    /* This is an odd-length list which shouldn't be allowed. */
+                    break;
+                route_output = (char *) reflect_routes->text;
+                reflect_routes = reflect_routes->next;
+
+                if (strcasecmp(route_input, i->hardware->name) == 0 && strcasecmp(route_output, j->hardware->name) == 0)
+                    /* Not a matching route. */
+                    continue;
+
+                /* Found a matching route. */
+                avahi_interface_post_response(j, r, flush_cache, NULL, 1);
+                break;
+            }
+        }
+    }
 }
 
 static void* reflect_cache_walk_callback(AvahiCache *c, AvahiKey *pattern, AvahiCacheEntry *e, void* userdata) {
@@ -1658,6 +1693,7 @@ AvahiServerConfig* avahi_server_config_init(AvahiServerConfig *c) {
     c->enable_reflector = 0;
     c->reflect_ipv = 0;
     c->reflect_filters = NULL;
+    c->reflect_routes = NULL;
     c->add_service_cookie = 0;
     c->enable_wide_area = 0;
     c->n_wide_area_servers = 0;
@@ -1681,13 +1717,14 @@ void avahi_server_config_free(AvahiServerConfig *c) {
     avahi_free(c->domain_name);
     avahi_string_list_free(c->browse_domains);
     avahi_string_list_free(c->reflect_filters);
+    avahi_string_list_free(c->reflect_routes);
     avahi_string_list_free(c->allow_interfaces);
     avahi_string_list_free(c->deny_interfaces);
 }
 
 AvahiServerConfig* avahi_server_config_copy(AvahiServerConfig *ret, const AvahiServerConfig *c) {
     char *d = NULL, *h = NULL;
-    AvahiStringList *browse = NULL, *allow = NULL, *deny = NULL, *reflect = NULL ;
+    AvahiStringList *browse = NULL, *allow = NULL, *deny = NULL, *reflect_filters = NULL, *reflect_routes = NULL;
     assert(ret);
     assert(c);
 
@@ -1722,10 +1759,20 @@ AvahiServerConfig* avahi_server_config_copy(AvahiServerConfig *ret, const AvahiS
         return NULL;
     }
 
-   if (!(reflect = avahi_string_list_copy(c->reflect_filters)) && c->reflect_filters) {
+   if (!(reflect_filters = avahi_string_list_copy(c->reflect_filters)) && c->reflect_filters) {
         avahi_string_list_free(allow);
         avahi_string_list_free(browse);
         avahi_string_list_free(deny);
+        avahi_free(h);
+        avahi_free(d);
+        return NULL;
+    }
+
+    if (!(reflect_routes = avahi_string_list_copy(c->reflect_routes)) && c->reflect_routes) {
+        avahi_string_list_free(allow);
+        avahi_string_list_free(browse);
+        avahi_string_list_free(deny);
+        avahi_string_list_free(reflect_filters);
         avahi_free(h);
         avahi_free(d);
         return NULL;
@@ -1737,7 +1784,8 @@ AvahiServerConfig* avahi_server_config_copy(AvahiServerConfig *ret, const AvahiS
     ret->browse_domains = browse;
     ret->allow_interfaces = allow;
     ret->deny_interfaces = deny;
-    ret->reflect_filters = reflect;
+    ret->reflect_filters = reflect_filters;
+    ret->reflect_routes = reflect_routes;
 
     return ret;
 }
