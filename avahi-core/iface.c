@@ -699,6 +699,41 @@ good:
     return avahi_interface_is_relevant_internal(i);
 }
 
+int avahi_interface_reflect_route_is_relevant(AvahiInterface *src, AvahiInterface *dst) {
+    AvahiStringList *reflect_routes;
+
+    assert(src);
+    assert(dst);
+    assert(src->monitor == dst->monitor);
+
+    if (!src->monitor->server->config.reflect_routes)
+        /* All routes allowed. */
+        return 1;
+
+    /* Iterating over configured routes. */
+    reflect_routes = src->monitor->server->config.reflect_routes;
+    while (reflect_routes) {
+        const char *route_input, *route_output;
+
+        route_input = (char *) reflect_routes->text;
+        reflect_routes = reflect_routes->next;
+        if (!reflect_routes)
+            /* This is an odd-length list which shouldn't be allowed. */
+            break;
+        route_output = (char *) reflect_routes->text;
+        reflect_routes = reflect_routes->next;
+
+        if (strcasecmp(route_input, src->hardware->name) == 0 && strcasecmp(route_output, dst->hardware->name) == 0)
+            /* Not a matching route. */
+            continue;
+
+        /* Found a matching route. */
+        return 1;
+    }
+
+    return 0;
+}
+
 int avahi_interface_address_is_relevant(AvahiInterfaceAddress *a) {
     AvahiInterfaceAddress *b;
     assert(a);

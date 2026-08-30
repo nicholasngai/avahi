@@ -165,6 +165,7 @@ void avahi_interface_free(AvahiInterface *i, int send_goodbye);
 void avahi_interface_update_rrs(AvahiInterface *i, int remove_rrs);
 void avahi_interface_check_relevant(AvahiInterface *i);
 int avahi_interface_is_relevant(AvahiInterface *i);
+int avahi_interface_reflect_route_is_relevant(AvahiInterface *src, AvahiInterface *dst);
 
 void avahi_interface_send_packet(AvahiInterface *i, AvahiDnsPacket *p);
 void avahi_interface_send_packet_unicast(AvahiInterface *i, AvahiDnsPacket *p, const AvahiAddress *a, uint16_t port);

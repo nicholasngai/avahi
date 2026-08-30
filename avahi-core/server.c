@@ -507,42 +507,9 @@ static void reflect_response(AvahiServer *s, AvahiInterface *i, AvahiRecord *r, 
         return;
 
     for (j = s->monitor->interfaces; j; j = j->interface_next) {
-        /* Don't reflect to the same interface. */
-        if (j == i)
-           continue;
-
-        /* Don't reflect to an interface with a different protocol unless configured. */
-        if (!s->config.reflect_ipv && j->protocol != i->protocol)
-            continue;
-
-        if (!s->config.reflect_routes) {
-            /* Reflect to all interfaces. */
+        /* For responses, the inbound interface is the source and the outbound interface is the destination when reflect routes are configured. */
+        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol) && (!s->config.reflect_routes || avahi_interface_reflect_route_is_relevant(i, j)))
             avahi_interface_post_response(j, r, flush_cache, NULL, 1);
-        } else {
-            AvahiStringList *reflect_routes;
-
-            /* Reflect only to configured interfaces by iterating over the routes. */
-            reflect_routes = s->config.reflect_routes;
-            while (reflect_routes) {
-                const char *route_input, *route_output;
-
-                route_input = (char *) reflect_routes->text;
-                reflect_routes = reflect_routes->next;
-                if (!reflect_routes)
-                    /* This is an odd-length list which shouldn't be allowed. */
-                    break;
-                route_output = (char *) reflect_routes->text;
-                reflect_routes = reflect_routes->next;
-
-                if (strcasecmp(route_input, i->hardware->name) == 0 && strcasecmp(route_output, j->hardware->name) == 0)
-                    /* Not a matching route. */
-                    continue;
-
-                /* Found a matching route. */
-                avahi_interface_post_response(j, r, flush_cache, NULL, 1);
-                break;
-            }
-        }
     }
 }
 
@@ -577,7 +544,8 @@ static void reflect_query(AvahiServer *s, AvahiInterface *i, AvahiKey *k) {
         return;
 
     for (j = s->monitor->interfaces; j; j = j->interface_next)
-        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol)) {
+        /* For queries, the inbound interface is the destination and the outbound interface is the source when reflect routes are configured. */
+        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol) && (!s->config.reflect_routes || avahi_interface_reflect_route_is_relevant(j, i))) {
             /* Post the query to other networks */
             avahi_interface_post_query(j, k, 1, NULL);
 
@@ -599,7 +567,8 @@ static void reflect_probe(AvahiServer *s, AvahiInterface *i, AvahiRecord *r) {
         return;
 
     for (j = s->monitor->interfaces; j; j = j->interface_next)
-        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol))
+        /* For probes, the inbound interface is the destination and the outbound interface is the source when reflect routes are configured. */
+        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol) && (!s->config.reflect_routes || avahi_interface_reflect_route_is_relevant(j, i)))
             avahi_interface_post_probe(j, r, 1);
 }
 
