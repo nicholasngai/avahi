@@ -724,11 +724,10 @@ int avahi_interface_reflect_route_is_relevant(AvahiInterface *src, AvahiInterfac
         reflect_routes = reflect_routes->next;
 
         if (strcasecmp(route_input, src->hardware->name) == 0 && strcasecmp(route_output, dst->hardware->name) == 0)
-            /* Not a matching route. */
-            continue;
+            /* Found a matching route. */
+            return 1;
 
-        /* Found a matching route. */
-        return 1;
+        /* Not a matching route. Continue. */
     }
 
     return 0;
