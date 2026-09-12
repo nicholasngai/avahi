@@ -567,8 +567,8 @@ static void reflect_probe(AvahiServer *s, AvahiInterface *i, AvahiRecord *r) {
         return;
 
     for (j = s->monitor->interfaces; j; j = j->interface_next)
-        /* For probes, the inbound interface is the destination and the outbound interface is the source when reflect routes are configured. */
-        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol) && (!s->config.reflect_routes || avahi_interface_reflect_route_is_relevant(j, i)))
+        /* For probes, the inbound interface is the source and the outbound interface is the destination when reflect routes are configured. */
+        if (j != i && (s->config.reflect_ipv || j->protocol == i->protocol) && (!s->config.reflect_routes || avahi_interface_reflect_route_is_relevant(i, j)))
             avahi_interface_post_probe(j, r, 1);
 }
 
